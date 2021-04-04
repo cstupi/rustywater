@@ -3,10 +3,6 @@
 #[macro_use] extern crate rocket;
 
 use rust_gpiozero::*;
-use std::thread::sleep;
-use std::time::Duration; 
-
-
 
 #[get("/")]
 fn index() -> &'static str {
@@ -16,7 +12,7 @@ fn index() -> &'static str {
 #[get("/pump/<pin>/<enable>")]
 fn pump(pin: u8, enable: bool) {
     let pin = LED::new(pin);
-    if(enable) {
+    if enable {
         pin.on();
     } else {
         pin.off();
