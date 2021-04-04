@@ -13,14 +13,14 @@ fn index() -> &'static str {
     "Hello, world!"
 }
 
-#[get("/pump")]
-fn pump() -> &'static str {
-
-    let pin = LED::new(4);
-    pin.on();
-    sleep(Duration::from_secs(5));
-    pin.off();
-    "Pump it up"
+#[get("/pump/<pin>/<enable>")]
+fn pump(pin: u8, enable: bool) {
+    let pin = LED::new(pin);
+    if(enable) {
+        pin.on();
+    } else {
+        pin.off();
+    }
 }
 
 fn main() {
