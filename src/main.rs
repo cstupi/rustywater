@@ -2,9 +2,8 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 #[macro_use] extern crate rocket;
 
-use rust_gpiozero::*;
-use std::thread::sleep;
-use std::time::Duration; 
+use gpio::{GpioOut};
+use std::{thread, time};
 
 
 #[get("/")]
@@ -13,14 +12,9 @@ fn index() -> &'static str {
 }
 
 #[get("/pump/<pin>/<enable>")]
-fn pump(pin: u8, enable: bool) -> &'static str {
-    let pin = LED::new(pin);
-    if enable {
-        pin.on();
-    } else {
-        pin.off();
-    }
-    sleep(Duration::from_secs(5));
+fn pump(pin: u16, enable: bool) -> &'static str {
+    let mut gpio = gpio::sysfs::SysFsGpioOutput::open(pin).unwrap();
+    gpio.set_value(enable).expect("could not set gpio4");
     "Complete"
 }
 
