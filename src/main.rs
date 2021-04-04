@@ -3,8 +3,6 @@
 #[macro_use] extern crate rocket;
 
 use gpio::{GpioOut};
-use std::{thread, time};
-
 
 #[get("/")]
 fn index() -> &'static str {
@@ -12,10 +10,9 @@ fn index() -> &'static str {
 }
 
 #[get("/pump/<pin>/<enable>")]
-fn pump(pin: u16, enable: bool) -> &'static str {
+fn pump(pin: u16, enable: bool) {
     let mut gpio = gpio::sysfs::SysFsGpioOutput::open(pin).unwrap();
     gpio.set_value(enable).expect("could not set gpio4");
-    "Complete"
 }
 
 fn main() {
