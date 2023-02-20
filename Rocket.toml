@@ -1,20 +1,23 @@
-[development]
+[debug]
 address = "0.0.0.0"
 port = 8000
 workers = 2
 log = "normal"
 limits = { forms = 32768 }
+gpio_enabled = true
 
-[staging]
+[local]
 address = "0.0.0.0"
-port = 80
+port = 8081
 workers = 2
 log = "normal"
 limits = { forms = 32768 }
+gpio_enabled = false
 
-[production]
+[release]
 address = "0.0.0.0"
 port = 80
 workers = 2
 log = "critical"
 limits = { forms = 32768 }
+gpio_enabled = true
