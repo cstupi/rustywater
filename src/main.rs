@@ -2,9 +2,10 @@
 
 use gpio::{GpioOut};
 use jsonwebtoken::jwk::AlgorithmParameters;
-use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey, decode_header, jwk};
-use rocket::http::Status;
-use rocket::request::{self, Outcome, Request, FromRequest};
+use jsonwebtoken::{decode, Validation, DecodingKey, decode_header, jwk};
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket::http::{Header, Status};
+use rocket::request::{Outcome, FromRequest};
 use rocket::serde::{Deserialize, Serialize};
 use rocket::serde::{json};
 use rocket::{State, fairing::AdHoc};
@@ -12,6 +13,26 @@ use std::collections::HashMap;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
+use rocket::{Request, Response};
+
+pub struct CORS;
+
+#[rocket::async_trait]
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to responses",
+            kind: Kind::Response
+        }
+    }
+
+    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, PATCH, OPTIONS"));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -36,7 +57,6 @@ enum ApiKeyError {
 }
 
 
-
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for ApiKey<'r> {
     type Error = ApiKeyError;
@@ -44,15 +64,27 @@ impl<'r> FromRequest<'r> for ApiKey<'r> {
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         /// Returns true if `key` is a valid API key string.
         fn is_valid(bearerkey: &str) -> bool {
-
+// http://localhost:8080/realms/garage-dev/protocol/openid-connect/certs
             const JWKS_REPLY: &str = r#"
-{"keys":[{"kid":"Itsb713OylqML6v9LxUaaSc9dK_lGfKvaUFPcpCnVsM","kty":"RSA","alg":"RS256","use":"sig","n":"qQC4baQ3MvrYEVytnbXTrRlAEtP1ObNJ-phT0knIraewI5Itoa57rRpt23MftyMVH0UX5SF4fwTnXt3eHq0jEcrL_zP9TAigZ62x-inxxGjmmCxPtWi8afdNOW4W-ATkg0ga0kbD0Ir-0jtVscbZ6yqrrdgTmRcw7cToBf_6Hmg6sf7D6w73o4qJU6R5by8vL12TnhFFOF95_w7ab0GhIWQFiYI8f0v8Rp9XBx-G1PejVuynQMeFVo5rSDYJuFkDWr5PxtyE4y6psvmr68_XrZYSPol4QJhIo8OaNDsfO57zwJPsjGFUaQEY94FWFo6xLhA1cBed7bcDJTa_NT6g9Q","e":"AQAB","x5c":["MIICozCCAYsCBgGGcNEigzANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDDApnYXJhZ2UtZGV2MB4XDTIzMDIyMDIxNTEzOVoXDTMzMDIyMDIxNTMxOVowFTETMBEGA1UEAwwKZ2FyYWdlLWRldjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKkAuG2kNzL62BFcrZ21060ZQBLT9TmzSfqYU9JJyK2nsCOSLaGue60abdtzH7cjFR9FF+UheH8E517d3h6tIxHKy/8z/UwIoGetsfop8cRo5pgsT7VovGn3TTluFvgE5INIGtJGw9CK/tI7VbHG2esqq63YE5kXMO3E6AX/+h5oOrH+w+sO96OKiVOkeW8vLy9dk54RRThfef8O2m9BoSFkBYmCPH9L/EafVwcfhtT3o1bsp0DHhVaOa0g2CbhZA1q+T8bchOMuqbL5q+vP162WEj6JeECYSKPDmjQ7Hzue88CT7IxhVGkBGPeBVhaOsS4QNXAXne23AyU2vzU+oPUCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAWQZcCrlHqQrVwngAlWilN3ok0b/n0cpteionimwC8srk9COia19Y1dKRLzAt/CPcR8BGbz4fcq7yi306USoh+7hita4PFPEQ3KaIJM2N0O/6AhQO3NLVimY/hbzw0sqj1dSNOtpZK3VDAWneqSz2CtRYTrt5mkNEIacAitS8COJH3Yk1IDspXKws7ALEtFMh69B4Bn5Jt36KP1QLRAluHk8/iJUVQYVlTWstFoceIO27u3HAecrj7QOFbAE5hI4zopLwc/mGAr3KjHXKSmEQuL+DN8cmgLyttPs4yRU1j4GV0X9pGgL1Me9KdKaAPb0LwX14qvGU55po/gB12oejvQ=="],"x5t":"G7dG_p55TkXZI8yCJ7nIaWjadaA","x5t#S256":"w3LBuxg969xhmOj0NRYLTKuYOoilnVcEwYVFUF4-FV8"}]}
+{"keys":[{
+    "kid": "QAsGatZf-DoSh5Sg2S8l-kBF9P4cAbVjJcZrp_r-mKw",
+    "kty": "RSA",
+    "alg": "RS256",
+    "use": "sig",
+    "n": "23YaSMGqVj3LnEtSz2YhANFvwoL3hTEkFinLSCeTcij2XOz1a1WkhsQZD0PR_N5ZFRqVThxh4sqO2pkoGdEPEO7MJUaKldroFc3vDOQAmhegVyd6zhUHJAwZ_7iGTMa2mEHJ9_OZWnvMY1g7Dk6Da5XAVaiaxTog7qLbO4jLeBUgVPRyxJya13sp_M_ME7MabCDK4H9S7Inf5MdqZcaUTTYlG41oYfVt3xX6bKZyP2SAbCuXqNj1bcB-ykTtHXuZSz7IKyRN_ObBfBZztzoEyQpXWMBmcM7VGE2oeZ_bNWdvrrv3SJYvCcR6C6tlGfw-7iIvxJ47oTCfC992rBkxew",
+    "e": "AQAB",
+    "x5c": [
+      "MIICozCCAYsCBgGGZu1U9zANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDDApnYXJhZ2UtZGV2MB4XDTIzMDIxODIzNDYxNVoXDTMzMDIxODIzNDc1NVowFTETMBEGA1UEAwwKZ2FyYWdlLWRldjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANt2GkjBqlY9y5xLUs9mIQDRb8KC94UxJBYpy0gnk3Io9lzs9WtVpIbEGQ9D0fzeWRUalU4cYeLKjtqZKBnRDxDuzCVGipXa6BXN7wzkAJoXoFcnes4VByQMGf+4hkzGtphByffzmVp7zGNYOw5Og2uVwFWomsU6IO6i2zuIy3gVIFT0csScmtd7KfzPzBOzGmwgyuB/UuyJ3+THamXGlE02JRuNaGH1bd8V+mymcj9kgGwrl6jY9W3AfspE7R17mUs+yCskTfzmwXwWc7c6BMkKV1jAZnDO1RhNqHmf2zVnb66790iWLwnEegurZRn8Pu4iL8SeO6EwnwvfdqwZMXsCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAcZ1aQZ3G74R4GtOS+EC8Sz+GlDd7XVChuxNp7zxOjb0DFlsGl9oAfJKwbsRfB2hpbzahCsgrENb0pehulWAMmZ9iKT9esKoQwAT1RJb/YpjtWVdTZTJSYKEu5Kc2QNEC2jcpfXFxovD0EFIz3LLCTOhBJrFitJSBS95hT9Ufnec1w0UzcqCa/cyI3hFDNyso8JMFy+a2obCJztRj7VEogfchu1oc1Crzzi65/KxXKy4n1R0GN/2FG8Iuj5SojpEsoQNX36RoCnmbxNUFmg300E4AE+f+wOFmif/8+FJgiSkHOWwoLhJDy4IO5khppjFEQxX5rhSCl2k9onc4JJmSHA=="
+    ],
+    "x5t": "EgQjhO0Y4jBNGGXeIDl1myogs-8",
+    "x5t#S256": "YUnNbrOx7UTzSrLqoxaOGxzu6cBMBLWpPlYoN8C0XYQ"
+  }]}
 "#;         let key = bearerkey.replace("Bearer ", "");
 
             let jwks: jwk::JwkSet = json::from_str(JWKS_REPLY).unwrap();
 
             let header = match decode_header(&key) {
-                Err(e) => return false,
+                Err(_e) => return false,
                 Ok(t) => t,
             };
             let kid = match header.kid {
@@ -89,6 +121,11 @@ impl<'r> FromRequest<'r> for ApiKey<'r> {
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
+}
+
+#[options("/<_..>")]
+fn all_options() {
+    /* Intentionally left empty */
 }
 
 #[get("/checkauth")]
@@ -139,8 +176,10 @@ fn timed(pin: u16, time: u64, config: &State<Config>) {
 
 #[launch]
 fn rocket() -> _ {
+
     rocket::build()
-    .mount("/", routes![index, checkauth])
+    .mount("/", routes![index, checkauth, all_options])
     .mount("/pin", routes![toggle, timed, blink])
     .attach(AdHoc::config::<Config>())
+    .attach(CORS)
 }
