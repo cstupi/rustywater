@@ -1,14 +1,15 @@
 #[macro_use] extern crate rocket;
 
+use jwt::JWTAuth;
 use settings::Settings;
 use gpio::{GpioOut};
 use rocket::{State, fairing::AdHoc};
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
-use crate::CORS::CORSFairing;
-mod CORS;
-mod JWT;
+use crate::cors::CORSFairing;
+mod cors;
+mod jwt;
 mod settings;
 
 #[get("/")]
@@ -22,7 +23,7 @@ fn all_options() {
 }
 
 #[get("/checkauth")]
-fn checkauth(_token: JWT::JWTAuth<'_>) -> &'static str {
+fn checkauth(_token: JWTAuth<'_>) -> &'static str {
     "Hello, world!"
 }
 
