@@ -29,7 +29,7 @@ fn checkauth(_token: JWTAuth<'_>) -> &'static str {
 
 
 #[put("/<pin>/toggle/<enable>")]
-fn toggle(pin: u16, enable: bool, config: &State<Settings>) {
+fn toggle(pin: u16, enable: bool, config: &State<Settings>, _token: JWTAuth<'_>) {
     if !config.gpio_enabled {
         return
     }
@@ -38,7 +38,7 @@ fn toggle(pin: u16, enable: bool, config: &State<Settings>) {
 }
 
 #[put("/<pin>/blink/<interval>/count/<count>")]
-fn blink(pin: u16, interval: u64, count: u64, config: &State<Settings>) {
+fn blink(pin: u16, interval: u64, count: u64, config: &State<Settings>, _token: JWTAuth<'_>) {
     if !config.gpio_enabled {
         return
     }
@@ -54,7 +54,7 @@ fn blink(pin: u16, interval: u64, count: u64, config: &State<Settings>) {
 
 // Webhook compatible way to turn on a pin for a time
 #[get("/<pin>/timed/<time>")]
-fn timed(pin: u16, time: u64, config: &State<Settings>) {
+fn timed(pin: u16, time: u64, config: &State<Settings>, _token: JWTAuth<'_>) {
     println!("GPIO ENABLED: {}", config.gpio_enabled);
     if !config.gpio_enabled {
         return
