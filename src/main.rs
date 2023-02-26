@@ -1,15 +1,18 @@
 #[macro_use] extern crate rocket;
 
 use jwt::JWTAuth;
-use settings::Settings;
+use rocket::shield::Shield;
+use crate::settings::Settings;
 use gpio::{GpioOut};
 use rocket::{State, fairing::AdHoc};
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
 use crate::cors::CORSFairing;
+use crate::jwkstore::JWKFairing;
 mod cors;
 mod jwt;
+mod jwkstore;
 mod settings;
 
 #[get("/")]
@@ -74,6 +77,9 @@ fn rocket() -> _ {
     rocket::build()
     .mount("/", routes![index, checkauth, all_options])
     .mount("/pin", routes![toggle, timed, blink])
+    .attach(Shield::default())
     .attach(AdHoc::config::<Settings>())
     .attach(CORSFairing)
+    .attach(JWKFairing { jwk_url: config.jwt_url, jwks: None})
+    .attach(JWTAuth)
 }
