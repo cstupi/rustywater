@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use jsonwebtoken::{jwk::{self, AlgorithmParameters}, decode_header, DecodingKey, Validation, decode};
-use rocket::{serde::{Serialize, Deserialize, json}, Request, http::Status};
+use rocket::{serde::{Serialize, Deserialize, json}, Request, http::{Status, ext::IntoCollection}, State, tokio::sync::RwLock};
 use rocket::request::{Outcome, FromRequest};
-use crate::jwkstore::JWKFairing;
+
+use crate::jwkstore::{JwkStore};
 
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -13,7 +14,7 @@ pub struct Claims {
     exp: usize,
 }
 
-pub struct JWTAuth<'r>(&'r str);
+pub struct JwtGuard<'r>(&'r str);
 
 #[derive(Debug)]
 pub enum JWTError {
@@ -21,14 +22,66 @@ pub enum JWTError {
     Invalid,
 }
 
+fn validate_jwt(jwk_store: &JwkStore, jwt: &str) -> bool {
+    let jwt_header = match decode_header(&jwt) {
+        Err(_e) => return false,
+        Ok(t) => t,
+    };
+    let kid = match jwt_header.kid {
+        Some(k) => k,
+        None => return false,
+    };
+
+    match jwk_store.jwks.find(&kid).cloned() {
+        Some(jwk) => {
+            match &jwk.algorithm {
+                AlgorithmParameters::RSA(rsa) => {
+                    let decoding_key = DecodingKey::from_rsa_components(&rsa.n, &rsa.e).unwrap();
+                    let mut validation = Validation::new(jwk.common.algorithm.unwrap());
+                    validation.validate_exp = false;
+                    println!("Validation algo");
+                    match decode::<HashMap<String, json::Value>>(&jwt, &decoding_key, &validation) {
+                        Ok(decoded_token) => {
+                            println!("Successful decoded token");
+                            true 
+                        },
+                        Err(err) => {
+                            println!("Error decoding token: {}", err);
+                            false
+                        },
+                    }
+                }
+                _ => unreachable!("this should be a RSA"),
+            
+            }
+        },
+        None => {
+            println!("jwk not found matching kid, {}", &kid);
+            false
+        }
+    }
+}
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for JWTAuth<'r> {
+impl<'r> FromRequest<'r> for JwtGuard<'r> {
     type Error = JWTError;
 
     async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         /// Returns true if `key` is a valid API key string.
-        fn is_valid(bearerkey: &str) -> bool {
+        fn is_valid(bearerkey: &str, jwk_store: &JwkStore) -> bool {
+            let key = bearerkey.replace("Bearer ", "");
+            validate_jwt(jwk_store, &key)
+        }
+
+        let jwk_store = req.guard::<&State<JwkStore>>().await.expect("JWKs are required");
+        match req.headers().get_one("authorization") {
+            None => Outcome::Failure((Status::BadRequest, JWTError::Missing)),
+            Some(key) if is_valid(key, jwk_store) => Outcome::Success(JwtGuard(key)),
+            Some(_) => Outcome::Failure((Status::Unauthorized, JWTError::Invalid)),
+        }
+    }
+}
+
 // http://localhost:8080/realms/garage-dev/protocol/openid-connect/certs
 //             const JWKS_REPLY: &str = r#"
 // {"keys":[{
@@ -46,42 +99,3 @@ impl<'r> FromRequest<'r> for JWTAuth<'r> {
 //   }]}
 // "#;       
 //         let jwks: jwk::JwkSet = json::from_str(JWKS_REPLY).unwrap();  
-            let key = bearerkey.replace("Bearer ", "");
-
-   
-
-            let header = match decode_header(&key) {
-                Err(_e) => return false,
-                Ok(t) => t,
-            };
-            let kid = match header.kid {
-                Some(k) => k,
-                None => return false,
-            };
-
-            if let Some(j) = JWKFairing::get_jwk(&JWKFairing, kid) {
-                match &j.algorithm {
-                    AlgorithmParameters::RSA(rsa) => {
-                        let decoding_key = DecodingKey::from_rsa_components(&rsa.n, &rsa.e).unwrap();
-                        let mut validation = Validation::new(j.common.algorithm.unwrap());
-                        validation.validate_exp = false;
-                        let decoded_token =
-                            decode::<HashMap<String, json::Value>>(&key, &decoding_key, &validation)
-                                .unwrap();
-                        println!("{:?}", decoded_token.claims);
-                    }
-                    _ => unreachable!("this should be a RSA"),
-                }
-            } else {
-                return false
-            }
-            true
-        }
-
-        match req.headers().get_one("authorization") {
-            None => Outcome::Failure((Status::BadRequest, JWTError::Missing)),
-            Some(key) if is_valid(key) => Outcome::Success(JWTAuth(key)),
-            Some(_) => Outcome::Failure((Status::BadRequest, JWTError::Invalid)),
-        }
-    }
-}

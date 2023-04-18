@@ -1,17 +1,21 @@
 #[macro_use] extern crate rocket;
 
-use jwt::JWTAuth;
+use jsonwebtoken::jwk;
+use jwkstore::JwkStore;
+use jwtguard::JwtGuard;
+use rocket::Rocket;
+use rocket::serde::json;
 use rocket::shield::Shield;
 use crate::settings::Settings;
 use gpio::{GpioOut};
 use rocket::{State, fairing::AdHoc};
+use std::sync::Arc;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
 use crate::cors::CORSFairing;
-use crate::jwkstore::JWKFairing;
 mod cors;
-mod jwt;
+mod jwtguard;
 mod jwkstore;
 mod settings;
 
@@ -26,13 +30,13 @@ fn all_options() {
 }
 
 #[get("/checkauth")]
-fn checkauth(_token: JWTAuth<'_>) -> &'static str {
+fn checkauth(_token: JwtGuard<'_>) -> &'static str {
     "Hello, world!"
 }
 
 
 #[put("/<pin>/toggle/<enable>")]
-fn toggle(pin: u16, enable: bool, config: &State<Settings>, _token: JWTAuth<'_>) {
+fn toggle(pin: u16, enable: bool, config: &State<Settings>, _token: JwtGuard<'_>) {
     if !config.gpio_enabled {
         return
     }
@@ -41,7 +45,7 @@ fn toggle(pin: u16, enable: bool, config: &State<Settings>, _token: JWTAuth<'_>)
 }
 
 #[put("/<pin>/blink/<interval>/count/<count>")]
-fn blink(pin: u16, interval: u64, count: u64, config: &State<Settings>, _token: JWTAuth<'_>) {
+fn blink(pin: u16, interval: u64, count: u64, config: &State<Settings>, _token: JwtGuard<'_>) {
     if !config.gpio_enabled {
         return
     }
@@ -57,7 +61,7 @@ fn blink(pin: u16, interval: u64, count: u64, config: &State<Settings>, _token: 
 
 // Webhook compatible way to turn on a pin for a time
 #[get("/<pin>/timed/<time>")]
-fn timed(pin: u16, time: u64, config: &State<Settings>, _token: JWTAuth<'_>) {
+fn timed(pin: u16, time: u64, config: &State<Settings>, _token: JwtGuard<'_>) {
     println!("GPIO ENABLED: {}", config.gpio_enabled);
     if !config.gpio_enabled {
         return
@@ -73,13 +77,22 @@ fn timed(pin: u16, time: u64, config: &State<Settings>, _token: JWTAuth<'_>) {
 
 #[launch]
 fn rocket() -> _ {
-
     rocket::build()
-    .mount("/", routes![index, checkauth, all_options])
-    .mount("/pin", routes![toggle, timed, blink])
-    .attach(Shield::default())
-    .attach(AdHoc::config::<Settings>())
-    .attach(CORSFairing)
-    .attach(JWKFairing { jwk_url: config.jwt_url, jwks: None})
-    .attach(JWTAuth)
+        .mount("/", routes![index, checkauth, all_options])
+        .mount("/pin", routes![toggle, timed, blink])
+        .attach(Shield::default())
+        .attach(AdHoc::config::<Settings>())
+        .attach(AdHoc::on_ignite("JwkStore", |rocket| Box::pin(async move {
+            let config: Settings = rocket.figment().extract().expect("configuration");
+            println!("The jwk url is: {}", config.jwk_url);
+            let body = reqwest::get(config.jwk_url).await.expect("failed to call external source for jwkset");
+            let text = body.text().await.expect("failed to get jwk request body");
+            println!("The jwk body: {}", text);
+           let jwks: jwk::JwkSet = json::from_str(&text).expect("JWK did not deserialize");
+           let jwk_store = JwkStore {
+             jwks: jwks.clone(),
+           };
+            rocket.manage(jwk_store)
+        })))
+        .attach(CORSFairing)
 }

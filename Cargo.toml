@@ -10,6 +10,7 @@ edition = "2018"
 gpio = "0.4.1"
 jsonwebtoken = "8"
 reqwest = { version = "0.11.14", features = ["blocking"] }
+sled = "0.34.7"
 
 [dependencies.rocket]
 version = "0.5.0-rc.2"
