@@ -87,11 +87,10 @@ fn rocket() -> _ {
             println!("The jwk url is: {}", config.jwk_url);
             let body = reqwest::get(config.jwk_url).await.expect("failed to call external source for jwkset");
             let text = body.text().await.expect("failed to get jwk request body");
-            println!("The jwk body: {}", text);
-           let jwks: jwk::JwkSet = json::from_str(&text).expect("JWK did not deserialize");
-           let jwk_store = JwkStore {
-             jwks: jwks.clone(),
-           };
+            let jwks: jwk::JwkSet = json::from_str(&text).expect("JWK did not deserialize");
+            let jwk_store = JwkStore {
+                jwks: jwks.clone(),
+            };
             rocket.manage(jwk_store)
         })))
         .attach(CORSFairing)
