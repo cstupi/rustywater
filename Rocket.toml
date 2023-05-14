@@ -22,4 +22,4 @@ workers = 2
 log = "critical"
 limits = { forms = 32768 }
 gpio_enabled = true
-jwk_url = "https://dub.cstupi.com/realms/garage/protocol/openid-connect/certs"
+jwk_url = "https://dub.cstupi.com/realms/home/protocol/openid-connect/certs"
